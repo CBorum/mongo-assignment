@@ -1,6 +1,7 @@
 package main
 
 import (
+	"time"
 	"log"
 	"regexp"
 	"sort"
@@ -23,7 +24,7 @@ const (
 
 func main() {
 	log.Println("starting...")
-	log.Println(os.Getenv("DB_URL"))
+
 	if os.Getenv("DB_URL") != "" {
 		dbURL = os.Getenv("DB_URL")
 	}
@@ -36,11 +37,6 @@ func main() {
 	}
 
 	go setIndexes()
-
-	// mgo.SetDebug(true)
-	// var aLogger *log.Logger
-	// aLogger = log.New(os.Stderr, "", log.LstdFlags)
-	// mgo.SetLogger(aLogger)
 
 	server := gin.Default()
 	server.GET("/", endpoints)
@@ -58,7 +54,7 @@ func endpoints(c *gin.Context) {
 		"top mentioners": "/mentioners",
 		"top mentioned":  "/mentioned",
 		"most active": "/active",
-		"most grumpy and happy": "/polarity",
+		"most grumpy and most happy": "/polarity",
 	})
 }
 
@@ -80,22 +76,12 @@ func users(c *gin.Context) {
 	c.JSON(200, gin.H{"users": len(result)})
 }
 
-// top mentioners mongo
-// db.getCollection('tweets').aggregate([
-//     { $match: { "text": /@\w/ } },
-//     {
-//         $group: {
-//             _id: { user: "$user" },
-//             count: { $sum: 1 }
-//         }
-//     },
-//     { $sort: { count: -1 } },
-//     { $limit: 10 }
-// ])
-
 func topMentioners(c *gin.Context) {
 	var result []interface{}
 	pipe := tweetsColl().Pipe([]bson.M{
+		{
+			"$unwind": "$text",
+		},
 		{
 			"$match": bson.M{
 				"text": bson.M{"$regex": `@\w+`},
@@ -118,41 +104,16 @@ func topMentioners(c *gin.Context) {
 		return
 	}
 
-	log.Println(result)
 	c.JSON(200, result)
 }
 
 func topMentioned(c *gin.Context) {
-	// var result []interface{}
-	pipe := tweetsColl().Pipe([]bson.M{
-		{
-			"$match": bson.M{
-				"text": bson.M{"$regex": `@\w+`},
-			},
-		},
-	})
+	pipe := tweetsColl().Pipe(mentionedQuery)
 
 	r := regexp.MustCompile(`@(\w+)`)
 	mentions := map[string]int{}
 	iter := pipe.Iter()
-
-	// var res map[string]interface{}
-	// for iter.Next(&res) {
-	// 	str := res["text"].(string)
-	// 	matches := r.FindAllStringSubmatch(str, -1)
-	// 	for _, v := range matches {
-	// 		if _, ok := mentions[v[1]]; ok {
-	// 			mentions[v[1]]++
-	// 		} else {
-	// 			mentions[v[1]] = 1
-	// 		}
-	// 	}
-	// }
-	// result := mentionResult{}
-	// //cost: O(n)
-	// for k, v := range mentions {
-	// 	result = append(result, &mention{User: k, Count: v})
-	// }
+	tStart := time.Now()	
 
 	var res map[string]interface{}
 	result := mentionResult{}
@@ -161,7 +122,6 @@ func topMentioned(c *gin.Context) {
 		matches := r.FindAllStringSubmatch(str, -1)
 		for _, v := range matches { // iterate over matches. There can be multiple mentions in one tweet
 			if index, ok := mentions[v[1]]; ok {
-				// log.Println(v[1], result[index])
 				result[index].Count++
 			} else {
 				mentions[v[1]] = len(result)
@@ -172,9 +132,45 @@ func topMentioned(c *gin.Context) {
 
 	// cost: O(n*log(n))
 	sort.Sort(result)
-
+	log.Println("process time", time.Since(tStart))
 	c.JSON(200, result[:10])
 }
+
+// func topMentioned2(c *gin.Context) {
+// 	pipe := tweetsColl().Pipe(mentionedQuery)
+	
+// 	r := regexp.MustCompile(`@(\w+)`)
+// 	var res []map[string]string
+
+// 	err := pipe.All(&res)
+// 	if err != nil {
+// 		log.Println(err)
+// 		c.JSON(500, "error")
+// 		return
+// 	}
+// 	tStart := time.Now()
+
+// 	mentions := map[string]int{}
+// 	result := mentionResult{}
+
+// 	for _, value := range res {
+// 		str := value["text"] // assert the type of the value returned
+// 		matches := r.FindAllStringSubmatch(str, -1)
+// 		for _, v := range matches { // iterate over matches. There can be multiple mentions in one tweet
+// 			if index, ok := mentions[v[1]]; ok {
+// 				result[index].Count++
+// 			} else {
+// 				mentions[v[1]] = len(result)
+// 				result = append(result, &mention{User: v[1], Count: 1})
+// 			}
+// 		}
+// 	}
+
+// 	// cost: O(n*log(n))
+// 	sort.Sort(result)
+// 	log.Println("process time", time.Since(tStart))
+// 	c.JSON(200, result[:10])
+// }
 
 func mostActive(c *gin.Context) {
 	var result []interface{}
@@ -191,6 +187,7 @@ func mostActive(c *gin.Context) {
 
 	err := pipe.All(&result)
 	if err != nil {
+		log.Println(err)
 		c.JSON(500, "error")
 		return
 	}
@@ -199,17 +196,6 @@ func mostActive(c *gin.Context) {
 	c.JSON(200, result)
 }
 
-// db.getCollection('tweets').aggregate([
-//     { $match: { "polarity": 0 } },
-//     {
-//         $group: {
-//             _id: { user: "$user" },
-//             count: { $sum: 1 }
-//         }
-//     },
-//     { $sort: { count: -1 } },
-//     { $limit: 5 }
-// ])
 func topPolarity(c *gin.Context) {
 	nChan := make(chan []interface{})
 	pChan := make(chan []interface{})
@@ -253,6 +239,22 @@ func getPolarityQuery(polarity int) []bson.M {
 		{"$sort": bson.M{"count": -1}},
 		{"$limit": 5},
 	}
+}
+
+var mentionedQuery = []bson.M{
+	{
+		"$unwind": "$text",
+	},
+	{
+		"$match": bson.M{
+			"text": bson.M{"$regex": `@\w+`},
+		},
+	},
+	{
+		"$project": bson.M{
+			"text": 1,
+		},
+	},
 }
 
 func tweetsColl() *mgo.Collection {

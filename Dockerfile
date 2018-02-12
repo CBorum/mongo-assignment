@@ -9,4 +9,6 @@ ADD src src
 
 ENV DB_URL=mongodb://172.17.0.2/16:27017/social_net
 
+ENV GIN_MODE=release
+
 CMD [ "go", "run", "src/main.go" ]
