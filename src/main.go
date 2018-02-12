@@ -4,17 +4,32 @@ import (
 	"log"
 	"regexp"
 	"sort"
+	"os"
 
 	"github.com/gin-gonic/gin"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
 
-var dbConn *mgo.Session
+var (
+	dbConn *mgo.Session
+	dbURL = "mongodb://localhost:27017/social_net"
+)
+
+const (
+	database = "social_net"
+	collection = "tweets"
+)
 
 func main() {
+	log.Println("starting...")
+	log.Println(os.Getenv("DB_URL"))
+	if os.Getenv("DB_URL") != "" {
+		dbURL = os.Getenv("DB_URL")
+	}
+
 	var err error
-	dbConn, err = mgo.Dial("mongodb://localhost:27017/social_net")
+	dbConn, err = mgo.Dial(dbURL)
 	defer dbConn.Close()
 	if err != nil {
 		panic(err)
@@ -28,12 +43,23 @@ func main() {
 	// mgo.SetLogger(aLogger)
 
 	server := gin.Default()
+	server.GET("/", endpoints)
 	server.GET("/users", users)
 	server.GET("/mentioners", topMentioners)
 	server.GET("/mentioned", topMentioned)
 	server.GET("/active", mostActive)
 	server.GET("/polarity", topPolarity)
 	server.Run()
+}
+
+func endpoints(c *gin.Context) {
+	c.JSON(200, gin.H{
+		"users": "/users",
+		"top mentioners": "/mentioners",
+		"top mentioned":  "/mentioned",
+		"most active": "/active",
+		"most grumpy and happy": "/polarity",
+	})
 }
 
 // How many Twitter users are in the database?
@@ -230,7 +256,7 @@ func getPolarityQuery(polarity int) []bson.M {
 }
 
 func tweetsColl() *mgo.Collection {
-	return dbConn.DB("social_net2").C("tweets")
+	return dbConn.DB(database).C(collection)
 }
 
 type mention struct {
@@ -269,7 +295,7 @@ func setIndexes() {
 	if len(indexes) < 2 {
 		log.Println("setting indexes")
 		tweetsColl().EnsureIndexKey("user")
-		tweetsColl().EnsureIndexKey("text")
+		tweetsColl().EnsureIndexKey("$text:text")
 		tweetsColl().EnsureIndexKey("polarity")
 	}
 }
