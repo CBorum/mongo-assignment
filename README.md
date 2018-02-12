@@ -1,5 +1,5 @@
 # Description
-The service is already running on my droplet, but if you want to deploy/test it yourself go to "Usage"
+The service is already running on my droplet (http://46.101.109.209/), but if you want to deploy/test it yourself go to "Usage"
 
 ## 1. How many Twitter users are in the database?
 Endpoint: /users
