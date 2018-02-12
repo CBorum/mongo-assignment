@@ -3,7 +3,6 @@ The service is already running on my droplet, but if you want to deploy/test it 
 
 ## 1. How many Twitter users are in the database?
 Endpoint: /users
-Avg. response time: ~4 sec
 ```json
 {
     "users": 659774
@@ -12,7 +11,6 @@ Avg. response time: ~4 sec
 
 ## 2. Which Twitter users link the most to other Twitter users? (Provide the top ten.)
 Endpoint: /mentioners
-Avg. response time: ~3 sec
 ```json
 [
     {
@@ -26,7 +24,6 @@ Avg. response time: ~3 sec
 ```
 ## 3. Who is are the most mentioned Twitter users? (Provide the top five.)
 Endpoint: /mentioned
-Avg. response time: ~9 sec
 ```json
 [
     {
@@ -38,7 +35,6 @@ Avg. response time: ~9 sec
 ```
 ## 4. Who are the most active Twitter users (top ten)?
 Endpoint: /active
-Avg. response time: ~4 sec
 ```json
 [
     {
@@ -52,7 +48,6 @@ Avg. response time: ~4 sec
 ```
 ## 5. Who are the five most grumpy (most negative tweets) and the most happy (most positive tweets)? (Provide five users for each group)
 Endpoint: /polarity
-Avg. response time: ~4 sec
 ```json
 {
     "negative": [
